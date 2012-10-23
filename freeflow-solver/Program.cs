@@ -9,7 +9,7 @@ namespace Solver
     {
         static void Main(string[] args)
         {
-#if true
+#if false
             var initial = Board.Initial.Validate(new Board(
                 new Pipe[4, 4] {
                     { 0, 0, 0, 0 },
@@ -41,20 +41,34 @@ namespace Solver
 
             Console.WriteLine(initial.Value.Board.ToString());
 
-            var q = new Stack<Board.InProgress>();
-            q.Push(new Board.InProgress(initial.Value));
-            while (q.Count > 0)
+            var nextBoardStack = new Stack<Board.InProgress>();
+            var nextMovesStack = new Stack<IEnumerator<Board.InProgress>>();
+
+            var firstBoard = new Board.InProgress(initial.Value);
+            nextBoardStack.Push(firstBoard);
+            nextMovesStack.Push(firstBoard.GetMoves().GetEnumerator());
+
+            while (nextBoardStack.Count > 0)
             {
-                var board = q.Pop();
+                var board = nextBoardStack.Pop();
                 if (board.Board.IsFinal())
                 {
-                    Console.WriteLine();
-                    Console.WriteLine(board.Board.ToString());
+                    Console.WriteLine(Environment.NewLine + board.Board.ToString());
                     continue;
                 }
 
-                foreach (var newBoard in board.GetMoves())
-                    q.Push(newBoard);
+                var nextMoves = nextMovesStack.Peek();
+                if (nextMoves.MoveNext())
+                {
+                    var newBoard = nextMoves.Current;
+                    Console.WriteLine(Environment.NewLine + newBoard.Board.ToString());
+                    nextBoardStack.Push(newBoard);
+                    nextMovesStack.Push(newBoard.GetMoves().GetEnumerator());
+                }
+                else
+                {
+                    nextMovesStack.Pop();
+                }
             }
         }
     }
@@ -296,7 +310,7 @@ namespace Solver
             }
             return new Pos(min, src.Y);
         }
-        
+
         public override string ToString()
         {
             var sb = new StringBuilder(Height * (Width + 2));
@@ -351,18 +365,22 @@ namespace Solver
             }
         }
 
-        public struct InProgress
+        public class InProgress
         {
             public readonly Board Board;
+            public readonly HashSet<byte> ColorsMoved;
 
             public InProgress(Initial initial)
             {
                 Board = initial.Board;
+                ColorsMoved = new HashSet<byte>();
             }
 
-            InProgress(Board board)
+            InProgress(Board board, byte[] colorsMoved, byte color)
             {
                 Board = board;
+                ColorsMoved = new HashSet<byte>(colorsMoved);
+                ColorsMoved.Add(color);
             }
 
             public IEnumerable<InProgress> GetMoves()
@@ -370,23 +388,28 @@ namespace Solver
                 // A move is a full connection between two same-colored pipe endpoints.
                 // Figure out which moves we can make:
                 var midpoint = new Pos(Board.Width - 1, Board.Height - 1);
-                
+
                 // Start from the outside and work our way inwards:
-                foreach (var point in Board.EndPoints.As.OrderByDescending(p => p.DoubleManhattanDistanceFrom(midpoint)))
+                foreach (var point in Board.EndPoints.As.Concat(Board.EndPoints.Bs).OrderByDescending(p => p.DoubleManhattanDistanceFrom(midpoint)))
                 {
                     var color = Board[point];
+                    if (ColorsMoved.Contains(color)) continue;
+
+                    var thisColorMoved = new HashSet<byte>(ColorsMoved);
+                    thisColorMoved.Add(color);
+
                     var a = point;
                     var b = Board.EndPoints.B(color);
-                    //if (a == b)
-                    //    b = Board.EndPoints.A(color);
+                    if (a == b)
+                        b = Board.EndPoints.A(color);
 
                     // Enumerate all possible paths from a to b:
-                    var paths = new Stack<Path>();
-                    paths.Push(new Path(Board, color, a, Direction.East));
+                    var paths = new Queue<Path>();
+                    paths.Enqueue(new Path(Board, color, a, Direction.East));
 
                     while (paths.Count > 0)
                     {
-                        var path = paths.Pop();
+                        var path = paths.Dequeue();
 
                         var fromDir = path.FromDirection;
                         var pos = path.Pos;
@@ -402,9 +425,9 @@ namespace Solver
                                 min = c.Y;
 
                                 var newpath = path.ApplyPathTo(c, b, Direction.North);
-                                if (c == b) yield return new InProgress(newpath.Board);
+                                if (c == b) yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
 
-                                paths.Push(newpath);
+                                paths.Enqueue(newpath);
                             }
                         }
                         if (fromDir != Direction.West)
@@ -418,9 +441,9 @@ namespace Solver
                                 min = c.X;
 
                                 var newpath = path.ApplyPathTo(c, b, Direction.West);
-                                if (c == b) yield return new InProgress(newpath.Board);
+                                if (c == b) yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
 
-                                paths.Push(newpath);
+                                paths.Enqueue(newpath);
                             }
                         }
                         if (fromDir != Direction.South)
@@ -434,9 +457,9 @@ namespace Solver
                                 max = c.Y;
 
                                 var newpath = path.ApplyPathTo(c, b, Direction.South);
-                                if (c == b) yield return new InProgress(newpath.Board);
+                                if (c == b) yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
 
-                                paths.Push(newpath);
+                                paths.Enqueue(newpath);
                             }
                         }
                         if (fromDir != Direction.East)
@@ -450,9 +473,9 @@ namespace Solver
                                 max = c.X;
 
                                 var newpath = path.ApplyPathTo(c, b, Direction.East);
-                                if (c == b) yield return new InProgress(newpath.Board);
+                                if (c == b) yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
 
-                                paths.Push(newpath);
+                                paths.Enqueue(newpath);
                             }
                         }
                     }
