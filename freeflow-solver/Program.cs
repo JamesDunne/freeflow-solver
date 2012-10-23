@@ -9,6 +9,7 @@ namespace Solver
     {
         static void Main(string[] args)
         {
+#if true
             var initial = Board.Initial.Validate(new Board(
                 new Pipe[4, 4] {
                     { 0, 0, 0, 0 },
@@ -17,7 +18,21 @@ namespace Solver
                     { 2, 0, 0, 1 }
                 }
             ));
-
+#else
+            var initial = Board.Initial.Validate(new Board(
+                new Pipe[9, 9] {
+                    { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+                    { 0, 0, 0, 0, 2, 6, 7, 0, 9 },
+                    { 0, 2, 0, 0, 5, 0, 8, 0, 0 },
+                    { 0, 0, 0, 4, 0, 0, 0, 0, 7 },
+                    { 1, 0, 0, 0, 0, 0, 6, 0, 0 },
+                    { 0, 0, 3, 0, 0, 0, 0, 0, 0 },
+                    { 0, 0, 0, 0, 5, 0, 3, 4, 0 },
+                    { 0, 0, 0, 0, 0, 0, 0, 9, 0 },
+                    { 1, 0, 0, 0, 0, 0, 0, 8, 0 },
+                }
+            ));
+#endif
             if (!initial.HasValue)
             {
                 Console.WriteLine("Invalid board!");
@@ -26,11 +41,11 @@ namespace Solver
 
             Console.WriteLine(initial.Value.Board.ToString());
 
-            var q = new Queue<Board.InProgress>();
-            q.Enqueue(new Board.InProgress(initial.Value));
+            var q = new Stack<Board.InProgress>();
+            q.Push(new Board.InProgress(initial.Value));
             while (q.Count > 0)
             {
-                var board = q.Dequeue();
+                var board = q.Pop();
                 if (board.Board.IsFinal())
                 {
                     Console.WriteLine();
@@ -39,7 +54,7 @@ namespace Solver
                 }
 
                 foreach (var newBoard in board.GetMoves())
-                    q.Enqueue(newBoard);
+                    q.Push(newBoard);
             }
         }
     }
@@ -114,7 +129,7 @@ namespace Solver
             FromDirection = dir;
         }
 
-        public Path ApplyPathTo(Pos dest, Direction direction)
+        public Path ApplyPathTo(Pos dest, Pos final, Direction direction)
         {
             // Apply the current path to a copy of the board:
             var newBoard = Board.Clone();
@@ -122,19 +137,31 @@ namespace Solver
             {
                 case Direction.North:
                     for (int y = Pos.Y - 1; y >= dest.Y; --y)
-                        newBoard.Pipe[y, Pos.X] = Color;
+                    {
+                        if (new Pos(Pos.X, y) == final) break;
+                        newBoard.OverwriteClearPipe(y, Pos.X, Color);
+                    }
                     break;
                 case Direction.South:
                     for (int y = Pos.Y + 1; y <= dest.Y; ++y)
-                        newBoard.Pipe[y, Pos.X] = Color;
+                    {
+                        if (new Pos(Pos.X, y) == final) break;
+                        newBoard.OverwriteClearPipe(y, Pos.X, Color);
+                    }
                     break;
                 case Direction.East:
                     for (int x = Pos.X + 1; x <= dest.X; ++x)
-                        newBoard.Pipe[Pos.Y, x] = Color;
+                    {
+                        if (new Pos(x, Pos.Y) == final) break;
+                        newBoard.OverwriteClearPipe(Pos.Y, x, Color);
+                    }
                     break;
                 case Direction.West:
                     for (int x = Pos.X - 1; x >= dest.X; --x)
-                        newBoard.Pipe[Pos.Y, x] = Color;
+                    {
+                        if (new Pos(x, Pos.Y) == final) break;
+                        newBoard.OverwriteClearPipe(Pos.Y, x, Color);
+                    }
                     break;
             }
             return new Path(newBoard, Color, dest, direction);
@@ -200,6 +227,12 @@ namespace Solver
         {
             Pipe = pipe;
             EndPoints = endPoints;
+        }
+
+        public void OverwriteClearPipe(int y, int x, byte color)
+        {
+            if (this[y, x] != 0) throw new ArgumentException();
+            Pipe[y, x] = color;
         }
 
         public byte this[int y, int x] { get { return Pipe[y /* + Pipe.GetLowerBound(0) */, x /* + Pipe.GetLowerBound(1) */].Color; } }
@@ -301,12 +334,10 @@ namespace Solver
                         PosPair pair;
                         if (pipes.TryGetValue(color, out pair))
                         {
-                            //Console.WriteLine("B: {0},{1}", x, y);
                             pipes[color] = new PosPair(pair.A, new Pos(x, y));
                         }
                         else
                         {
-                            //Console.WriteLine("A: {0},{1}", x, y);
                             pipes[color] = new PosPair(new Pos(x, y), new Pos(-1, -1));
                         }
                     }
@@ -341,13 +372,13 @@ namespace Solver
                 var midpoint = new Pos(Board.Width - 1, Board.Height - 1);
                 
                 // Start from the outside and work our way inwards:
-                foreach (var point in Board.EndPoints.As.Concat(Board.EndPoints.Bs).OrderByDescending(p => p.DoubleManhattanDistanceFrom(midpoint)))
+                foreach (var point in Board.EndPoints.As.OrderByDescending(p => p.DoubleManhattanDistanceFrom(midpoint)))
                 {
                     var color = Board[point];
                     var a = point;
                     var b = Board.EndPoints.B(color);
-                    if (a == b)
-                        b = Board.EndPoints.A(color);
+                    //if (a == b)
+                    //    b = Board.EndPoints.A(color);
 
                     // Enumerate all possible paths from a to b:
                     var paths = new Stack<Path>();
@@ -363,12 +394,14 @@ namespace Solver
                         if (fromDir != Direction.North)
                         {
                             // Try north:
-                            for (int min = 0; min <= a.Y; ++min)
+                            for (int min = 0; min <= pos.Y; ++min)
                             {
                                 var c = path.Board.GetNorthernMostPoint(pos, b, min);
                                 if (c == pos) break;
+                                if (c == a) break;
+                                min = c.Y;
 
-                                var newpath = path.ApplyPathTo(c, Direction.North);
+                                var newpath = path.ApplyPathTo(c, b, Direction.North);
                                 if (c == b) yield return new InProgress(newpath.Board);
 
                                 paths.Push(newpath);
@@ -377,12 +410,14 @@ namespace Solver
                         if (fromDir != Direction.West)
                         {
                             // Try west:
-                            for (int min = 0; min <= a.X; ++min)
+                            for (int min = 0; min <= pos.X; ++min)
                             {
                                 var c = path.Board.GetWesternMostPoint(pos, b, min);
                                 if (c == pos) break;
+                                if (c == a) break;
+                                min = c.X;
 
-                                var newpath = path.ApplyPathTo(c, Direction.West);
+                                var newpath = path.ApplyPathTo(c, b, Direction.West);
                                 if (c == b) yield return new InProgress(newpath.Board);
 
                                 paths.Push(newpath);
@@ -391,12 +426,14 @@ namespace Solver
                         if (fromDir != Direction.South)
                         {
                             // Try south:
-                            for (int max = path.Board.Height - 1; max >= a.Y; --max)
+                            for (int max = path.Board.Height - 1; max >= pos.Y; --max)
                             {
                                 var c = path.Board.GetSouthernMostPoint(pos, b, max);
                                 if (c == pos) break;
+                                if (c == a) break;
+                                max = c.Y;
 
-                                var newpath = path.ApplyPathTo(c, Direction.South);
+                                var newpath = path.ApplyPathTo(c, b, Direction.South);
                                 if (c == b) yield return new InProgress(newpath.Board);
 
                                 paths.Push(newpath);
@@ -405,12 +442,14 @@ namespace Solver
                         if (fromDir != Direction.East)
                         {
                             // Try east:
-                            for (int max = path.Board.Width - 1; max >= a.X; --max)
+                            for (int max = path.Board.Width - 1; max >= pos.X; --max)
                             {
                                 var c = path.Board.GetEasternMostPoint(pos, b, max);
                                 if (c == pos) break;
+                                if (c == a) break;
+                                max = c.X;
 
-                                var newpath = path.ApplyPathTo(c, Direction.East);
+                                var newpath = path.ApplyPathTo(c, b, Direction.East);
                                 if (c == b) yield return new InProgress(newpath.Board);
 
                                 paths.Push(newpath);
