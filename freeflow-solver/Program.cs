@@ -55,7 +55,6 @@ namespace Solver
                 if (board.Board.IsFinal())
                 {
                     Console.WriteLine(Environment.NewLine + board.Board.ToString());
-                    continue;
                 }
 
                 nextMoves = nextMovesStack.Peek();
@@ -405,14 +404,15 @@ namespace Solver
                 // Figure out which moves we can make:
                 var midpoint = new Pos(Board.Width - 1, Board.Height - 1);
 
+                var colorsVisited = new HashSet<byte>(ColorsMoved);
+
                 // Start from the outside and work our way inwards:
                 foreach (var point in Board.EndPoints.As.Concat(Board.EndPoints.Bs).OrderByDescending(p => p.DoubleManhattanDistanceFrom(midpoint)))
                 {
                     var color = Board[point];
                     if (ColorsMoved.Contains(color)) continue;
-
-                    var thisColorMoved = new HashSet<byte>(ColorsMoved);
-                    thisColorMoved.Add(color);
+                    if (colorsVisited.Contains(color)) continue;
+                    colorsVisited.Add(color);
 
                     var a = point;
                     var b = Board.EndPoints.B(color);
