@@ -45,18 +45,11 @@ namespace Solver
             var nextMovesStack = new Stack<IEnumerator<Board.InProgress>>();
 
             var firstBoard = new Board.InProgress(initial.Value);
-            nextBoardStack.Push(firstBoard);
             nextMovesStack.Push(firstBoard.GetMoves().GetEnumerator());
 
             IEnumerator<Board.InProgress> nextMoves;
-            while (nextBoardStack.Count > 0)
+            while (nextMovesStack.Count > 0)
             {
-                var board = nextBoardStack.Pop();
-                if (board.Board.IsFinal())
-                {
-                    Console.WriteLine(Environment.NewLine + board.Board.ToString());
-                }
-
                 nextMoves = nextMovesStack.Peek();
                 bool haveNext;
                 if (!(haveNext = nextMoves.MoveNext()))
@@ -76,11 +69,18 @@ namespace Solver
                 if (!haveNext) continue;
 
                 // Get the next move and proceed deeper:
-                var newBoard = nextMoves.Current;
-                //string pad = new string(' ', nextMovesStack.Count * 4);
-                //Console.WriteLine(Environment.NewLine + pad + newBoard.Board.ToString().Replace(Environment.NewLine, Environment.NewLine + pad));
-                nextBoardStack.Push(newBoard);
-                nextMovesStack.Push(newBoard.GetMoves().GetEnumerator());
+                var board = nextMoves.Current;
+                string pad = new string(' ', nextMovesStack.Count * 4);
+                Console.WriteLine(Environment.NewLine + pad + board.Board.ToString().Replace(Environment.NewLine, Environment.NewLine + pad));
+
+                if (board.Board.IsFinal())
+                {
+                    //string pad = new string(' ', nextMovesStack.Count * 4);
+                    //Console.WriteLine(Environment.NewLine + pad + board.Board.ToString().Replace(Environment.NewLine, Environment.NewLine + pad));
+                    continue;
+                }
+
+                nextMovesStack.Push(board.GetMoves().GetEnumerator());
             }
         }
     }
@@ -98,6 +98,7 @@ namespace Solver
 
     public enum Direction
     {
+        None,
         North,
         South,
         East,
@@ -410,7 +411,6 @@ namespace Solver
                 foreach (var point in Board.EndPoints.As.Concat(Board.EndPoints.Bs).OrderByDescending(p => p.DoubleManhattanDistanceFrom(midpoint)))
                 {
                     var color = Board[point];
-                    if (ColorsMoved.Contains(color)) continue;
                     if (colorsVisited.Contains(color)) continue;
                     colorsVisited.Add(color);
 
@@ -421,7 +421,7 @@ namespace Solver
 
                     // Enumerate all possible paths from a to b:
                     var paths = new Queue<Path>();
-                    paths.Enqueue(new Path(Board, color, a, Direction.East));
+                    paths.Enqueue(new Path(Board, color, a, Direction.None));
 
                     while (paths.Count > 0)
                     {
