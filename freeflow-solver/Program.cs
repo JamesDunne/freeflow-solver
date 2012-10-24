@@ -48,6 +48,7 @@ namespace Solver
             nextBoardStack.Push(firstBoard);
             nextMovesStack.Push(firstBoard.GetMoves().GetEnumerator());
 
+            IEnumerator<Board.InProgress> nextMoves;
             while (nextBoardStack.Count > 0)
             {
                 var board = nextBoardStack.Pop();
@@ -57,18 +58,30 @@ namespace Solver
                     continue;
                 }
 
-                var nextMoves = nextMovesStack.Peek();
-                if (nextMoves.MoveNext())
+                nextMoves = nextMovesStack.Peek();
+                bool haveNext;
+                if (!(haveNext = nextMoves.MoveNext()))
                 {
-                    var newBoard = nextMoves.Current;
-                    Console.WriteLine(Environment.NewLine + newBoard.Board.ToString());
-                    nextBoardStack.Push(newBoard);
-                    nextMovesStack.Push(newBoard.GetMoves().GetEnumerator());
-                }
-                else
-                {
+                    // Done with this move enumerator:
                     nextMovesStack.Pop();
+                    while (nextMovesStack.Count > 0)
+                    {
+                        nextMoves = nextMovesStack.Peek();
+                        if ((haveNext = nextMoves.MoveNext()))
+                            break;
+                        else
+                            nextMovesStack.Pop();
+                    }
                 }
+
+                if (!haveNext) continue;
+
+                // Get the next move and proceed deeper:
+                var newBoard = nextMoves.Current;
+                //string pad = new string(' ', nextMovesStack.Count * 4);
+                //Console.WriteLine(Environment.NewLine + pad + newBoard.Board.ToString().Replace(Environment.NewLine, Environment.NewLine + pad));
+                nextBoardStack.Push(newBoard);
+                nextMovesStack.Push(newBoard.GetMoves().GetEnumerator());
             }
         }
     }
@@ -313,11 +326,14 @@ namespace Solver
 
         public override string ToString()
         {
-            var sb = new StringBuilder(Height * (Width + 2));
+            var sb = new StringBuilder(Height * (Width + 2) - 2);
             for (int y = 0; y < Height; ++y)
             {
                 for (int x = 0; x < Width; ++x)
-                    sb.Append((char)('0' + this[y, x]));
+                {
+                    if (this[y, x] == 0) sb.Append('-');
+                    else sb.Append((char)('0' + this[y, x]));
+                }
                 if (y < Height - 1) sb.AppendLine();
             }
             return sb.ToString();
@@ -425,7 +441,11 @@ namespace Solver
                                 min = c.Y;
 
                                 var newpath = path.ApplyPathTo(c, b, Direction.North);
-                                if (c == b) yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
+                                if (c == b)
+                                {
+                                    yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
+                                    continue;
+                                }
 
                                 paths.Enqueue(newpath);
                             }
@@ -441,7 +461,11 @@ namespace Solver
                                 min = c.X;
 
                                 var newpath = path.ApplyPathTo(c, b, Direction.West);
-                                if (c == b) yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
+                                if (c == b)
+                                {
+                                    yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
+                                    continue;
+                                }
 
                                 paths.Enqueue(newpath);
                             }
@@ -457,7 +481,11 @@ namespace Solver
                                 max = c.Y;
 
                                 var newpath = path.ApplyPathTo(c, b, Direction.South);
-                                if (c == b) yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
+                                if (c == b)
+                                {
+                                    yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
+                                    continue;
+                                }
 
                                 paths.Enqueue(newpath);
                             }
@@ -473,7 +501,11 @@ namespace Solver
                                 max = c.X;
 
                                 var newpath = path.ApplyPathTo(c, b, Direction.East);
-                                if (c == b) yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
+                                if (c == b)
+                                {
+                                    yield return new InProgress(newpath.Board, ColorsMoved.ToArray(), color);
+                                    continue;
+                                }
 
                                 paths.Enqueue(newpath);
                             }
