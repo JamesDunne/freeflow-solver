@@ -15,10 +15,20 @@ namespace Solver
                     { 0, 0, 0, 0 },
                     { 0, 1, 2, 0 },
                     { 0, 0, 0, 0 },
-                    { 2, 0, 0, 1 }
+                    { 2, 0, 0, 1 },
                 }
             ));
-#else
+#elif true
+            var initial = Board.Initial.Validate(new Board(
+                new Pipe[5, 5] {
+                    { 0, 0, 0, 0, 3 },
+                    { 0, 1, 2, 0, 0 },
+                    { 0, 0, 0, 0, 0 },
+                    { 0, 0, 0, 0, 0 },
+                    { 2, 0, 0, 1, 3 },
+                }
+            ));
+#elif false
             var initial = Board.Initial.Validate(new Board(
                 new Pipe[9, 9] {
                     { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -70,13 +80,13 @@ namespace Solver
 
                 // Get the next move and proceed deeper:
                 var board = nextMoves.Current;
-                string pad = new string(' ', nextMovesStack.Count * 4);
-                Console.WriteLine(Environment.NewLine + pad + board.Board.ToString().Replace(Environment.NewLine, Environment.NewLine + pad));
+                //string pad = new string(' ', nextMovesStack.Count * 4);
+                //Console.WriteLine(Environment.NewLine + pad + board.Board.ToString().Replace(Environment.NewLine, Environment.NewLine + pad));
 
                 if (board.Board.IsFinal())
                 {
-                    //string pad = new string(' ', nextMovesStack.Count * 4);
-                    //Console.WriteLine(Environment.NewLine + pad + board.Board.ToString().Replace(Environment.NewLine, Environment.NewLine + pad));
+                    string pad = new string(' ', nextMovesStack.Count * 4);
+                    Console.WriteLine(Environment.NewLine + pad + board.Board.ToString().Replace(Environment.NewLine, Environment.NewLine + pad));
                     continue;
                 }
 
@@ -527,10 +537,11 @@ namespace Solver
 
         public bool IsFinal()
         {
-            // Determine if this board state is a winner.
+            // All cells are filled:
             for (int y = 0; y < Height; ++y)
                 for (int x = 0; x < Width; ++x)
                     if (this[y, x] == 0) return false;
+            // All endpoints should be reachable by one another:
             return true;
         }
     }
